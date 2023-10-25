@@ -25,8 +25,7 @@ lazy val commonDependencies = Seq(
   "ch.qos.logback" % "logback-classic" % logbackVersion, // Logback Classic Logger
   "org.slf4j" % "slf4j-api" % sfl4sVersion, // SLF4J API Module
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test, // ScalaTest for testing
-  "org.apache.hadoop" % "hadoop-client" % "3.3.3",
-  "org.apache.hadoop" % "hadoop-aws" % "3.3.3",
+  "org.apache.spark" %% "spark-core" % "3.3.2" % Provided,
 )
 
 // Define your project and its dependencies.
