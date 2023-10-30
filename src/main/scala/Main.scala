@@ -6,8 +6,33 @@
 */
 
 package com.lsc
+
+import NetGraphAlgebraDefs.NodeObject
+import com.lsc.LoadMethods.{deserializeWithCustomClassLoader, saveToGraphX}
+import org.apache.spark.sql.SparkSession
+
+import java.io.FileInputStream
+
 object Main {
+
   def main(args: Array[String]): Unit = {
-    println("Hello world!")
+
+    // Initialize SparkSession
+    val spark = SparkSession.builder
+      .appName("SparkRandomWalk")
+      .master("local[*]") // Use "local[*]" for local mode. Change this if deploying on a cluster.
+      .getOrCreate()
+
+    // Get SparkContext from SparkSession
+    val sc = spark.sparkContext
+
+    // Example usage
+    val deserializedList: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](new FileInputStream("/Users/seyfal/Desktop/CS441 Cloud/NetGraph_25-10-23-13-45-45.ngs"))
+
+    // Convert the deserialized list into a GraphX graph
+    val graph = saveToGraphX(deserializedList, sc)
+
+    // stop SparkSession
+    spark.stop()
   }
 }
