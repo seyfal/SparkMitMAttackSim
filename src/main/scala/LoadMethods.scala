@@ -55,15 +55,15 @@ object LoadMethods {
     ois.readObject().asInstanceOf[T]
   }
 
-  def extractNodeInfo(node: NodeObject): (Long, Boolean) = {
+  private def extractNodeInfo(node: NodeObject): (Long, Boolean) = {
     (node.id.toLong, node.valuableData)
   }
 
-  def extractEdgeInfo(action: Action): Edge[Unit] = {
-    Edge(action.fromNode.id.toLong, action.toNode.id.toLong)
+  private def extractEdgeInfo(action: Action): Edge[Int] = {
+    Edge(action.fromNode.id.toLong, action.toNode.id.toLong, 1)
   }
 
-  def saveToGraphX(deserializedList: List[NetGraphComponent], sc: SparkContext): Graph[Boolean, Unit] = {
+  def saveToGraphX(deserializedList: List[NetGraphComponent], sc: SparkContext): Graph[Boolean, Int] = {
     // Separate NodeObjects and Actions
     val nodesOnly = deserializedList.collect { case node: NodeObject => node }
     val actionsOnly = deserializedList.collect { case action: Action => action }
@@ -71,10 +71,10 @@ object LoadMethods {
     // Extracting properties and converting NodeObject list to Vertex RDD
     val vertices: RDD[(VertexId, Boolean)] = sc.parallelize(nodesOnly.map(node => extractNodeInfo(node)))
 
-    // Only extract edges from the Action objects
+    // Extract edges with cost from the Action objects
     val edgesFromActions = actionsOnly.map(action => extractEdgeInfo(action))
 
-    val edges: RDD[Edge[Unit]] = sc.parallelize(edgesFromActions)
+    val edges: RDD[Edge[Int]] = sc.parallelize(edgesFromActions)
 
     // Create the Graph
     val graph = Graph(vertices, edges)

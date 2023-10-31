@@ -1,10 +1,11 @@
 import sbt.Keys.libraryDependencies
 
+Global / excludeLintKeys += idePackagePrefix
+Global / excludeLintKeys += test / fork
+Global / excludeLintKeys += run / mainClass
+
 // Define the version of your project.
 ThisBuild / version := "0.1.0"
-
-fork in run := false
-fork in Test := false
 
 // Define the Scala version to be used.
 ThisBuild / scalaVersion := "2.13.10"
@@ -48,6 +49,9 @@ scalacOptions ++= Seq(
 )
 
 // Define JVM options for running your project.
+//compileOrder := CompileOrder.JavaThenScala
+//test / fork := true
+//run / fork := true
 run / javaOptions ++= Seq(
   "-Xms512M", // Initial JVM heap size
   "-Xmx2G", // Maximum JVM heap size
@@ -56,4 +60,13 @@ run / javaOptions ++= Seq(
 
 // Define the main class. Replace with the actual main class of your application.
 Compile / mainClass := Some("com.lsc.Main")
-run / mainClass := Some("com.lsc.Main")
+
+val jarName = "RandomWalk.jar"
+assembly/assemblyJarName := jarName
+
+//Merging strategies
+ThisBuild / assemblyMergeStrategy := {
+  case PathList("META-INF", _*) => MergeStrategy.discard
+  case "reference.conf" => MergeStrategy.concat
+  case _ => MergeStrategy.first
+}
