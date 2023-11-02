@@ -8,28 +8,21 @@
 package com.lsc
 
 // Required imports for GraphX
-import org.apache.spark.graphx._
-import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
+import org.apache.spark.graphx._
+import scala.util.Random
 
 object RandomWalks {
   // Initialize logger for this object
   @transient private lazy val logger = LoggerFactory.getLogger(getClass)
-  import org.apache.spark.graphx._
-  import org.apache.spark.rdd.RDD
-  import org.slf4j.LoggerFactory
-  import scala.util.Random
 
   object RandomWalkMethods {
-
-    // Initialize logger for this object
-    private val logger = LoggerFactory.getLogger(getClass)
 
     /**
      *  Conducts a random walk on a given graph.
      *
      *  @param graph The input graph with Boolean vertex values and Int edge values.
-     *  @param maxSteps The maximum number of steps for the random walk. Default value is 5.
+     *  @param numSteps The maximum number of steps for the random walk. Default value is 5.
      *  @return A list of vertex IDs representing the path taken in the random walk.
      */
     def randomWalk(graph: Graph[Boolean, Int], numSteps: Int): List[Long] = {

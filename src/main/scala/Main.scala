@@ -10,20 +10,21 @@ package com.lsc
 // for anything that needs NetGameSim classes
 import NetGraphAlgebraDefs.NodeObject
 
-// for randomWalk
-import com.lsc.RandomWalks.RandomWalkMethods.randomWalk
-
 // for logging
 import org.slf4j.LoggerFactory
 
 // for locally implemented methods
 import com.lsc.LoadMethods.{deserializeWithCustomClassLoader, saveToGraphX}
+import com.lsc.AttackSimulation.evaluateRandomWalkAndDecide
 
 // for Spark
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.graphx.Graph
 
-// for reading from file
+// for utilities
 import java.io.FileInputStream
+import scala.util.Random
+
 
 object Main {
 
@@ -33,6 +34,7 @@ object Main {
   def main(args: Array[String]): Unit = {
     try {
 
+      // TODO: Fix the logger issue
       logger.info(s"$methodName: Starting the program")
 
       // Initialize SparkSession
@@ -44,22 +46,38 @@ object Main {
       // Get SparkContext from SparkSession
       val sc = spark.sparkContext
 
+      // TODO - Change the path to call a config loader method for retrieval
       val deserializedList: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](new FileInputStream("/Users/seyfal/Desktop/CS441 Cloud/NetGraph_25-10-23-13-45-45.ngs"))
 
       // Convert the deserialized list into a GraphX graph
-      val graph = saveToGraphX(deserializedList, sc)
+      var graph = saveToGraphX(deserializedList, sc)
 
-      // Specify the number of steps for each random walk
-      val numSteps = 5
+      // Randomly select a vertex ID to hold valuable data
+      val verticesWithValuableData = graph.vertices.map(_._1).collect()
+      val randomVertexId = verticesWithValuableData(Random.nextInt(verticesWithValuableData.length))
 
-      // Run random walks 20 times
-      val numRuns = 20
-      val allPaths = for (_ <- 1 to numRuns) yield randomWalk(graph, numSteps)
-
-      // Print the paths
-      allPaths.zipWithIndex.foreach { case (path, index) =>
-        println(s"Random Walk ${index + 1}: ${path.mkString(" -> ")}")
+      // Create a new vertices RDD with one node assigned valuable data
+      val newVertices = graph.vertices.map { case (vid, _) =>
+        if (vid == randomVertexId) {
+          (vid, true) // This node has valuable data
+        } else {
+          (vid, false) // Other nodes do not
+        }
       }
+
+      // Create a new graph with the updated vertices
+      graph = graph.outerJoinVertices(newVertices) {
+        case (_, _, Some(hasValuableData)) => hasValuableData
+        case (_, data, None) => data
+      }
+
+      // print the graph
+      println(graph.vertices.collect().mkString("\n") )
+
+      val originalGraph: Graph[Boolean, Int] = graph
+      val perturbedGraph: Graph[Boolean, Int] = graph
+
+      evaluateRandomWalkAndDecide(sc, originalGraph, perturbedGraph, 100, 10, 0.8)
 
       // stop SparkSession
       spark.stop()
