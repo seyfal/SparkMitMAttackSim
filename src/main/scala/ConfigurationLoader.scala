@@ -1,10 +1,11 @@
 package com.lsc
 
-import com.typesafe.config.ConfigFactory
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.net.URI
 import scala.util.Try
 
@@ -13,23 +14,23 @@ import scala.util.Try
 object ConfigurationLoader {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
-  private val methodName = "Main"
+  private val methodName = "ConfigurationLoader"
 
   // ################### CONFIG LOADER ###################
   // Load configurations using typesafe Config
   private val config = ConfigFactory.load()
-  logger.info("Configuration set up successfully")
+  logger.info(s"$methodName: Configuration set up successfully")
 
   // ################### ENVIRONMENT CHECKER ###################
 
   // Check if the application is being run on the AWS
-  logger.info("Checking if the application is running on the AWS")
+  logger.info(s"$methodName: Checking if the application is running on the AWS")
   private val isOnAWS = Try {
     val uri = new URI("http://169.254.169.254/latest/meta-data/")
-    val url = uri.toURL()
+    val url = uri.toURL
     val connection = url.openConnection()
-    connection.setConnectTimeout(3000) // set timeout to 5 seconds
-    connection.setReadTimeout(3000) // set read timeout to 5 seconds
+    connection.setConnectTimeout(1000) // set timeout to 5 seconds
+    connection.setReadTimeout(1000) // set read timeout to 5 seconds
 
     val source = scala.io.Source.fromInputStream(connection.getInputStream)
     try {
@@ -38,16 +39,16 @@ object ConfigurationLoader {
       source.close()
     }
   }.getOrElse(false)
-  logger.info(s"Is the application running on the AWS? $isOnAWS")
+  logger.info(s"$methodName: Is the application running on the AWS? $isOnAWS")
 
   // Check if the application is being run on the AWS EMR
-  logger.info("Checking if the application is running on the AWS EMR")
+  logger.info(s"$methodName: Checking if the application is running on the AWS EMR")
   private val isOnEMR = Try {
     val uri = new URI("http://169.254.169.254/latest/user-data/")
-    val url = uri.toURL()
+    val url = uri.toURL
     val connection = url.openConnection()
-    connection.setConnectTimeout(3000) // set timeout to 5 seconds
-    connection.setReadTimeout(3000) // set read timeout to 5 seconds
+    connection.setConnectTimeout(1000) // set timeout to 5 seconds
+    connection.setReadTimeout(1000) // set read timeout to 5 seconds
 
     val source = scala.io.Source.fromInputStream(connection.getInputStream)
     try {
@@ -57,21 +58,21 @@ object ConfigurationLoader {
       source.close()
     }
   }.getOrElse(false)
-  logger.info(s"Is the application running on the AWS EMR? $isOnEMR")
+  logger.info(s"$methodName: Is the application running on the AWS EMR? $isOnEMR")
 
   // set the environment
   private val environment = if (isOnAWS && isOnEMR) "cloud" else "local"
-  logger.info(s"Environment set to $environment")
+  logger.info(s"$methodName: Environment set to $environment")
 
   // ################### DEBUG CHECKER ###################
   // Determine if the application is running in debug mode
   private val debug = config.getBoolean("app.debug")
-  logger.info(s"Is the application running in debug mode? $debug")
+  logger.info(s"$methodName: Is the application running in debug mode? $debug")
 
   // ################### FINAL PATHS SETTING ###################
   // Load appropriate configuration section based on debug mode
   logger.info(
-    "Loading appropriate configuration section based on debug and environment settings"
+    s"$methodName: Loading appropriate configuration section based on debug and environment settings"
   )
   private val appConfig =
     if (debug && environment == "local") {
@@ -91,51 +92,73 @@ object ConfigurationLoader {
       .render()
   )
 
-  // ################### HDFS ###################
-  def getHdfsBase: String = config.getString("hdfs.hdfsBase")
-  def getOriginalGraphPath: String = config.getString("hdfs.originalGraphPath")
-  def getPerturbedGraphPath: String = config.getString("hdfs.perturbedGraphPath")
-  def getUserDirectory: String = config.getString("hdfs.userDirectory")
-  def getJobPath: String = config.getString("job.jarPath")
+  // ################### COMMON CONFIG ###################
+  // Retrieve common configurations that are not environment dependent
+  def getNumRandomWalks: Int = config.getInt("app.common.NumRandomWalks")
+  def getSimilarityThreshold: Double = config.getDouble("app.common.SimilarityThreshold")
+  def getNumRandomWalkSteps: Int = config.getInt("app.common.NumRandomWalkSteps")
 
-  // ################### FILE PATHS ###################
-  // Retrieve the original graph file path
-  def getOriginalGraphFilePath: String = {
-    appConfig.getString("originalGraphFilePath")
+  def getC: Double = config.getDouble("app.common.C")
+  def getMaxDepth: Int = config.getInt("app.common.MaxDepth")
+  def getThreshold: Double = config.getDouble("app.common.Threshold")
+
+  // ################### SPARK SESSION BUILDER ###################
+  def createSparkSession(): SparkSession = {
+    val builder = SparkSession.builder().appName(appConfig.getString("appName"))
+
+    // Based on the environment, configure Spark
+    environment match {
+      case "local" =>
+        builder.master(appConfig.getString("master"))
+      case "cloud" =>
+        builder.master(appConfig.getString("master"))
+//          .config("spark.executor.memory", appConfig.getString("executorMemory"))
+//          .config("spark.executor.cores", appConfig.getString("executorCores"))
+//          .config("spark.dynamicAllocation.enabled", appConfig.getString("dynamicAllocationEnabled"))
+//          .config("spark.submit.deployMode", appConfig.getString("deployMode"))
+        // If there is a 'totalExecutorCores' setting, include it
+//        if (appConfig.hasPath("totalExecutorCores")) {
+//          builder.config("spark.cores.max", appConfig.getString("totalExecutorCores"))
+//        }
+    }
+
+    builder.getOrCreate()
   }
 
-  // Retrieve the perturbed graph file path
-  def getPerturbedGraphFilePath: String =
-    appConfig.getString("perturbedGraphFilePath")
+  // ################### FILE PATH RETRIEVER ###################
+  def getOriginalGraphFilePath: String = {
+    // If we're in debug mode or if there's no specific debug/release distinction,
+    // simply return the 'originalGraphFilePath' from the respective environment.
+    if (debug || !appConfig.hasPath("release.originalGraphFilePath")) {
+      appConfig.getString("originalGraphFilePath")
+    } else {
+      appConfig.getString("release.originalGraphFilePath")
+    }
+  }
 
-  // Retrieve the golden set file path (YAML)
-  def getGoldenSetFilePath: String = appConfig.getString("yamlFilePath")
+  def getPerturbedGraphFilePath: String = {
+    // Similar to the original graph file path, check for debug mode or lack of specific paths
+    if (debug || !appConfig.hasPath("release.perturbedGraphFilePath")) {
+      appConfig.getString("perturbedGraphFilePath")
+    } else {
+      appConfig.getString("release.perturbedGraphFilePath")
+    }
+  }
 
-  // ################### GET SIMILARITY CONFIGURATIONS ###################
-  // Retrieve the number of pieces (shards) for the graph
-  def getNumPieces: Int = config.getInt("app.common.numPieces")
+  // Add a method or a value to get the output directory from the configuration
+  def getOutputDirectory: String = {
+    if (debug || !appConfig.hasPath("release.outputDirectory")) {
+      appConfig.getString("outputDirectory")
+    } else {
+      appConfig.getString("release.outputDirectory")
+    }
+  }
 
-  // Retrieve the similarity threshold value for comparisons
-  def getSimilarityThreshold: Double =
-    config.getDouble("app.common.similarityThreshold")
-
-  // Retrieve the depth for similarity checks
-  def getSimilarityDepth: Int = config.getInt("app.common.similarityDepth")
-
-  // Get the Hadoop FileSystem instance.
-  def getFileSystem: FileSystem = FileSystem.get(getHadoopConfiguration)
-
-  // ################### HADOOP CONFIG ###################
-  // Initialize and return the Hadoop configuration.
-  private def getHadoopConfiguration: Configuration = {
-    val hadoopConf = new Configuration()
-    // Adding core-site.xml path to Hadoop's configuration
-    hadoopConf.addResource(new Path(config.getString("hadoop.coreSitePath")))
-    // Adding hdfs-site.xml path to Hadoop's configuration
-    hadoopConf.addResource(new Path(config.getString("hadoop.hdfsSitePath")))
-    // Set default file system
-    hadoopConf.set("fs.defaultFS", "hdfs://127.0.0.1:9000")
-    hadoopConf
+  // Method to generate the file name using time and day
+  def generateFileName(): String = {
+    val currentTime = LocalDateTime.now()
+    val formatter = DateTimeFormatter.ofPattern("HHmmss_MMddyyyy")
+    s"MITMStatistics_${currentTime.format(formatter)}"
   }
 
 }

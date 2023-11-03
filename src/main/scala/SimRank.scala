@@ -1,14 +1,15 @@
 package com.lsc
 
+import com.lsc.ConfigurationLoader.{getC, getMaxDepth, getThreshold}
 import org.apache.spark.graphx._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 
 object SimRank {
 
-  private val C = 0.8
-  private val MAX_DEPTH = 5
-  private val THRESHOLD = 0.01
+  private val C = getC
+  private val MAX_DEPTH = getMaxDepth
+  private val THRESHOLD = getThreshold
 
   private def compute(neighborsMap: Broadcast[Map[VertexId, Array[VertexId]]], a: VertexId, b: VertexId, depth: Int = 0): Double = {
     if (depth > MAX_DEPTH) return 0.0

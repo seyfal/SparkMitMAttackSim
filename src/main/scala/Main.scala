@@ -1,90 +1,78 @@
-/*
-    Copyright (c) 2023. Seyfal Sultanov
-    Unless required by applicable law or agreed to in writing, software distributed under
-    the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-    either express or implied.  See the License for the specific language governing permissions and limitations under the License.
-*/
-
 package com.lsc
 
-// for anything that needs NetGameSim classes
 import NetGraphAlgebraDefs.NodeObject
-
-// for logging
 import org.slf4j.LoggerFactory
-
-// for locally implemented methods
 import com.lsc.LoadMethods.{deserializeWithCustomClassLoader, saveToGraphX}
 import com.lsc.AttackSimulation.evaluateRandomWalkAndDecide
+import com.lsc.ConfigurationLoader.{generateFileName, getNumRandomWalkSteps, getNumRandomWalks, getOriginalGraphFilePath, getOutputDirectory, getPerturbedGraphFilePath, getSimilarityThreshold}
+import com.lsc.Statistics.setNumberOfNodes
 
-// for Spark
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.graphx.Graph
-
-// for utilities
 import java.io.FileInputStream
-import scala.util.Random
-
 
 object Main {
 
+  // Initialize the logger for the application
   private val logger = LoggerFactory.getLogger(this.getClass)
   private val methodName = "Main"
 
   def main(args: Array[String]): Unit = {
+    // Begin try-catch block for exception handling
     try {
-
-      // TODO: Fix the logger issue
+      // Log the start of the main function
       logger.info(s"$methodName: Starting the program")
 
-      // Initialize SparkSession
-      val spark = SparkSession.builder
-        .appName("SparkRandomWalk")
-        .master("local[*]") // Use "local[*]" for local mode. Change this if deploying on a cluster.
-        .getOrCreate()
+      // Initialize SparkSession with settings from ConfigurationLoader
+      val spark = ConfigurationLoader.createSparkSession()
+      logger.debug(s"$methodName: SparkSession initialized")
 
-      // Get SparkContext from SparkSession
+      // Extract SparkContext from SparkSession
       val sc = spark.sparkContext
+      logger.debug(s"$methodName: SparkContext extracted from SparkSession")
 
-      // TODO - Change the path to call a config loader method for retrieval
-      val deserializedList: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](new FileInputStream("/Users/seyfal/Desktop/CS441 Cloud/NetGraph_25-10-23-13-45-45.ngs"))
+      // Deserialize a previously saved graph from file
+      val originalGraphDeserialized: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](
+        new FileInputStream(getOriginalGraphFilePath)
+      )
+
+      val perturbedGraphDeserialized: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](
+        new FileInputStream(getPerturbedGraphFilePath)
+      )
 
       // Convert the deserialized list into a GraphX graph
-      var graph = saveToGraphX(deserializedList, sc)
+      val originalGraphRDD = saveToGraphX(originalGraphDeserialized, sc)
+      val perturbedGraphRDD = saveToGraphX(perturbedGraphDeserialized, sc)
 
-      // Randomly select a vertex ID to hold valuable data
-      val verticesWithValuableData = graph.vertices.map(_._1).collect()
-      val randomVertexId = verticesWithValuableData(Random.nextInt(verticesWithValuableData.length))
+      // set the size of the graph
+      setNumberOfNodes(originalGraphRDD.numVertices)
 
-      // Create a new vertices RDD with one node assigned valuable data
-      val newVertices = graph.vertices.map { case (vid, _) =>
-        if (vid == randomVertexId) {
-          (vid, true) // This node has valuable data
-        } else {
-          (vid, false) // Other nodes do not
-        }
-      }
+      // Log the completion of the graph loading
+      logger.debug(s"$methodName: Graph loaded successfully")
 
-      // Create a new graph with the updated vertices
-      graph = graph.outerJoinVertices(newVertices) {
-        case (_, _, Some(hasValuableData)) => hasValuableData
-        case (_, data, None) => data
-      }
+      // Evaluate the random walk attack simulation
+      evaluateRandomWalkAndDecide(sc, originalGraphRDD, perturbedGraphRDD, getNumRandomWalks, getNumRandomWalkSteps, getSimilarityThreshold)
 
-      // print the graph
-      println(graph.vertices.collect().mkString("\n") )
+      // Generate and print a summary of attack statistics
+      val summary = Statistics.generateSummary()
+      logger.info(s"$methodName: Summary of attack statistics:\n$summary")
 
-      val originalGraph: Graph[Boolean, Int] = graph
-      val perturbedGraph: Graph[Boolean, Int] = graph
+      // Assuming the output directory and file name are given
+      val outputDirectory = getOutputDirectory
+      val fileName = generateFileName() + ".yaml"
 
-      evaluateRandomWalkAndDecide(sc, originalGraph, perturbedGraph, 100, 10, 0.8)
+      // Save the YAML summary
+      Statistics.saveSummaryToFile(outputDirectory, fileName)
 
-      // stop SparkSession
+      // Stop the SparkSession
       spark.stop()
+      logger.info(s"$methodName: Program finished successfully")
     } catch {
+      // Log exceptions at the error level and rethrow to handle upstream if necessary
       case e: Exception =>
-        logger.error(s"$methodName: An exception occurred: $e")
+        logger.error(s"$methodName: An exception occurred:", e)
+        throw e // Optionally rethrow if you want to propagate the error
+    } finally {
+      // Finally block to execute clean-up actions or logging that should occur regardless of success or failure
+      logger.debug(s"$methodName: Exiting the program")
     }
   }
-
 }

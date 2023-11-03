@@ -14,46 +14,39 @@ object AttackSimulation {
                                    threshold: Double // Threshold for deciding a match based on SimRank
                                  ): Unit = {
 
-    // This will hold the results of all attacks
-    var successfulAttacks = 0
-    var failedAttacks = 0
-
     for (_ <- 1 to numRandomWalks) {
       // Generate a random walk path
       val randomWalkPath = RandomWalks.RandomWalkMethods.randomWalk(perturbedGraph, numSteps)
+      // Add the random walk length to the statistics
+      Statistics.addRandomWalkLength(randomWalkPath.length)
 
       // Evaluate the random walk path
       val simRankScores = SimRank.calculateForRandomWalk(sc, originalGraph, perturbedGraph, randomWalkPath)
 
       // Determine the success of the attack
-      simRankScores.foreach { case ((perturbedId, originalId), score) =>
-        if (score > threshold) {
-          // Check if the original node contains valuable data
-          val originalNodeContainsValuableData = originalGraph.vertices.filter {
-            case (vid, valuableData) => vid == originalId && valuableData
-          }.count() > 0
+      simRankScores.foreach { case ((_, originalId), score) =>
+        val originalNodeContainsValuableData = originalGraph.vertices.filter {
+          case (vid, valuableData) => vid == originalId && valuableData
+        }.count() > 0
 
+        if (score > threshold) {
           if (originalNodeContainsValuableData) {
-            // Check if the match is correct (not a honeypot)
-            if (perturbedGraph.vertices.filter {
-              case (vid, _) => vid == perturbedId
-            }.count() == 1) {
-              successfulAttacks += 1
-            } else {
-              failedAttacks += 1
-            }
+            // True positive: attack correctly identified valuable data
+            Statistics.addTruePositive()
+          } else {
+            // False positive: attack incorrectly identified node as having valuable data
+            Statistics.addFalsePositive()
+          }
+        } else {
+          if (originalNodeContainsValuableData) {
+            // False negative: attack failed to identify a node that did have valuable data
+            Statistics.addFalseNegative()
+          } else {
+            // True negative: correctly identified a node as not having valuable data
+            Statistics.addTrueNegative()
           }
         }
       }
     }
-
-    // Print the statistics for the simulation
-    println(s"Number of successful attacks: $successfulAttacks")
-    println(s"Number of failed attacks: $failedAttacks")
-
-    // You can add additional logic for precision, recall, or any other metrics here.
   }
-
 }
-
-
