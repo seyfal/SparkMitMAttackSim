@@ -1,47 +1,49 @@
-//import NetGraphAlgebraDefs.NetGraphComponent
-//import com.lsc.LoadMethods.saveToGraphX
-//import org.scalatest._
-//import org.scalatest.flatspec.AnyFlatSpec
-//import org.scalatest.matchers.should.Matchers
-//import org.apache.spark._
-//import org.apache.spark.graphx._
-//
-//// for NodeObject
-//import NetGraphAlgebraDefs.NodeObject
-//import NetGraphAlgebraDefs.Action
-//
-//class TestCases extends AnyFlatSpec with Matchers {
-//
-//  // Mock SparkContext for testing
-//  val conf = new SparkConf().setAppName("GraphTests").setMaster("local")
-//  val sc = new SparkContext(conf)
-//
-//  "saveToGraphX" should "create correct edges from NodeObjects and Actions" in {
-//    // Sample data for testing
-//    val node1 = NodeObject(...)  // fill in the data
-//    val node2 = NodeObject(...)  // fill in the data
-//    val action1 = Action(...)    // fill in the data
-//
-//    val deserializedList: List[NetGraphComponent] = List(node1, node2, action1)
-//
-//    // Create the graph
-//    val graph = saveToGraphX(deserializedList, sc)
-//
-//    // Verifying edges using graph's edges RDD
-//    val edgeList = graph.edges.collect.toList
-//
-//    edgeList should contain (Edge(node1.id, node2.id, action1.actionType))
-//    // ... Add more such checks for other edges
-//
-//    // If node1 has children, verify that as well
-//    node1.childrenObjects.foreach(child => edgeList should contain (Edge(node1.id, child.id, 1)))
-//    // The '1' here assumes a default edge value for parent-child relationships. Change if needed.
-//  }
-//
-//  // You can add more tests...
-//
-//  // Clean up after all tests
-//  def afterAll() {
-//    sc.stop()
-//  }
-//}
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
+import org.scalatest.BeforeAndAfter
+import org.scalatest.funsuite.AnyFunSuite
+
+class TestCases extends AnyFunSuite with BeforeAndAfter {
+
+  private var sc: SparkContext = _
+
+  before {
+    val conf = new SparkConf()
+      .setAppName("LoadMethodsTest")
+      .setMaster("local[*]")
+    sc = new SparkContext(conf)
+  }
+
+  after {
+    if (sc != null) {
+      sc.stop()
+    }
+  }
+
+  test("loadNodes should load all nodes from a JSON file") {
+    val vertices = LoadMethods.loadNodes(sc, "/Users/seyfal/Desktop/CS441 Cloud/originalNodes")
+    assert(vertices.count() === 501)
+  }
+
+  test("loadNodes should extract the correct 'valuableData' property") {
+    val vertices = LoadMethods.loadNodes(sc, "/Users/seyfal/Desktop/CS441 Cloud/perturbedNodes")
+    assert(vertices.first()._2 === false) // Replace true with the actual expected value for 'valuableData'
+  }
+
+  test("loadEdges should load all edges from a text file") {
+    val edges = LoadMethods.loadEdges(sc, "/Users/seyfal/Desktop/CS441 Cloud/originalEdges")
+    assert(edges.count() === 989) // Replace 10 with the actual expected number of edges
+  }
+
+  test("loadEdges should load all edges from a perturbed graph text file") {
+    val edges = LoadMethods.loadEdges(sc, "/Users/seyfal/Desktop/CS441 Cloud/perturbedEdges")
+    assert(edges.count() === 936) // Replace 10 with the actual expected number of edges
+  }
+
+  test("createGraph should construct a Graph from node and edge files") {
+    val graph = LoadMethods.createGraph(sc, "/Users/seyfal/Desktop/CS441 Cloud/originalNodes", "/Users/seyfal/Desktop/CS441 Cloud/originalEdges")
+    assert(graph.vertices.count() === 501) // Replace 5 with the actual expected number of vertices
+    assert(graph.edges.count() === 989) // Replace 10 with the actual expected number of edges
+  }
+
+}
