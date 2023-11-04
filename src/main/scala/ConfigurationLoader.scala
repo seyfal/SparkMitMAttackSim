@@ -1,3 +1,18 @@
+/*
+    Copyright (c) 2023 Seyfal Sultanov
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
 
 import com.typesafe.config.ConfigFactory
 import org.apache.spark.sql.SparkSession
@@ -8,45 +23,49 @@ import java.time.format.DateTimeFormatter
 import java.net.URI
 import scala.util.Try
 
-/** A singleton object that provides methods to load various configurations from application's configuration file.
+/**
+ * Provides utilities for loading and accessing configurations from the application's
+ * configuration files. It determines the environment (AWS, EMR, local), checks for debug mode,
+ * and configures the Spark session accordingly.
  */
 object ConfigurationLoader {
 
+  // Logger for the ConfigurationLoader
   private val logger = LoggerFactory.getLogger(this.getClass)
-  private val methodName = "ConfigurationLoader"
 
-  // ################### CONFIG LOADER ###################
-  // Load configurations using typesafe Config
+  // Initialize the configuration by loading it from the default location
   private val config = ConfigFactory.load()
-  logger.info(s"$methodName: Configuration set up successfully")
+  logger.info("ConfigurationLoader: Configuration set up successfully")
 
   // ################### ENVIRONMENT CHECKER ###################
-  // Check if the application is being run on the AWS
-  logger.info(s"$methodName: Checking if the application is running on the AWS")
-  private val isOnAWS = Try {
+  /**
+   * Checks if the application is running on AWS by attempting to access the AWS metadata service.
+   * @return Boolean representing whether the app is running on AWS or not.
+   */
+  private def checkIsOnAWS: Boolean = Try {
     val uri = new URI("http://169.254.169.254/latest/meta-data/")
-    val url = uri.toURL
-    val connection = url.openConnection()
-    connection.setConnectTimeout(1000) // set timeout to 5 seconds
-    connection.setReadTimeout(1000) // set read timeout to 5 seconds
+    val connection = uri.toURL.openConnection()
+    connection.setConnectTimeout(1000)
+    connection.setReadTimeout(1000)
 
     val source = scala.io.Source.fromInputStream(connection.getInputStream)
-    try {
-      source.mkString.nonEmpty
-    } finally {
-      source.close()
-    }
+    try source.mkString.nonEmpty
+    finally source.close()
   }.getOrElse(false)
-  logger.info(s"$methodName: Is the application running on the AWS? $isOnAWS")
 
-  // Check if the application is being run on the AWS EMR
-  logger.info(s"$methodName: Checking if the application is running on the AWS EMR")
-  private val isOnEMR = Try {
+  // Call the check method and log the result
+  private val isOnAWS = checkIsOnAWS
+  logger.info(s"ConfigurationLoader: Is the application running on the AWS? $isOnAWS")
+
+  /**
+   * Checks if the application is running on AWS EMR by attempting to access the AWS user-data service.
+   * @return Boolean representing whether the app is running on AWS EMR or not.
+   */
+  private def checkIsOnEMR: Boolean = Try {
     val uri = new URI("http://169.254.169.254/latest/user-data/")
-    val url = uri.toURL
-    val connection = url.openConnection()
-    connection.setConnectTimeout(1000) // set timeout to 5 seconds
-    connection.setReadTimeout(1000) // set read timeout to 5 seconds
+    val connection = uri.toURL.openConnection()
+    connection.setConnectTimeout(1000)
+    connection.setReadTimeout(1000)
 
     val source = scala.io.Source.fromInputStream(connection.getInputStream)
     try {
@@ -56,55 +75,103 @@ object ConfigurationLoader {
       source.close()
     }
   }.getOrElse(false)
-  logger.info(s"$methodName: Is the application running on the AWS EMR? $isOnEMR")
 
+  // Call the check method and log the result
+  private val isOnEMR = checkIsOnEMR
+  logger.info(s"ConfigurationLoader: Is the application running on the AWS EMR? $isOnEMR")
+
+  // Determine the environment based on the checks
   private val environment = if (isOnAWS && isOnEMR) "cloud" else "local"
-
-  logger.info(s"$methodName: Environment set to $environment")
+  logger.info(s"ConfigurationLoader: Environment set to $environment")
 
   // ################### DEBUG CHECKER ###################
-  // Determine if the application is running in debug mode
+  // Determine if the application is running in debug mode from the configuration
   private val debug = config.getBoolean("app.debug")
-  logger.info(s"$methodName: Is the application running in debug mode? $debug")
+  logger.info(s"ConfigurationLoader: Is the application running in debug mode? $debug")
 
   // ################### FINAL PATHS SETTING ###################
-  // Load appropriate configuration section based on debug mode
-  logger.info(
-    s"$methodName: Loading appropriate configuration section based on debug and environment settings"
-  )
-  private val appConfig =
-    if (debug && environment == "local") {
-      config.getConfig("app.local.debug")
-    } else if (!debug && environment == "local") {
-      config.getConfig("app.local.release")
-    } else if (environment == "cloud") {
-      config.getConfig("app.cloud")
-    } else {
-      throw new IllegalArgumentException(
-        "Invalid configuration or environment settings"
-      )
-    }
-  logger.info(
-    "Configuration is set to take the path from the following section: " + appConfig
-      .root()
-      .render()
-  )
+  // Load appropriate configuration section based on debug mode and environment
+  private val appConfig = (debug, environment) match {
+    case (true, "local") => config.getConfig("app.local.debug")
+    case (false, "local") => config.getConfig("app.local.release")
+    case (_, "cloud") => config.getConfig("app.cloud")
+    case _ => throw new IllegalArgumentException("Invalid configuration or environment settings")
+  }
+  logger.info("ConfigurationLoader: Configuration section loaded successfully")
 
   // ################### COMMON CONFIG ###################
-  // Retrieve common configurations that are not environment dependent
-  def getNumRandomWalks: Int = config.getInt("app.common.NumRandomWalks")
-  def getSimilarityThreshold: Double = config.getDouble("app.common.SimilarityThreshold")
-  def getNumRandomWalkSteps: Int = config.getInt("app.common.NumRandomWalkSteps")
+  /**
+   * Retrieves the number of random walks to perform from the configuration.
+   * @return The number of random walks as an Int.
+   */
+  def getNumRandomWalks: Int = {
+    val numRandomWalks = config.getInt("app.common.NumRandomWalks")
+    logger.info(s"ConfigurationLoader: Number of random walks retrieved: $numRandomWalks")
+    numRandomWalks
+  }
 
-  def getC: Double = config.getDouble("app.common.C")
-  def getMaxDepth: Int = config.getInt("app.common.MaxDepth")
-  def getThreshold: Double = config.getDouble("app.common.Threshold")
+  /**
+   * Retrieves the similarity threshold for the random walks from the configuration.
+   * @return The similarity threshold as a Double.
+   */
+  def getSimilarityThreshold: Double = {
+    val similarityThreshold = config.getDouble("app.common.SimilarityThreshold")
+    logger.info(s"ConfigurationLoader: Similarity threshold retrieved: $similarityThreshold")
+    similarityThreshold
+  }
+
+  /**
+   * Retrieves the number of steps for each random walk from the configuration.
+   * @return The number of steps per random walk as an Int.
+   */
+  def getNumRandomWalkSteps: Int = {
+    val numRandomWalkSteps = config.getInt("app.common.NumRandomWalkSteps")
+    logger.info(s"ConfigurationLoader: Number of random walk steps retrieved: $numRandomWalkSteps")
+    numRandomWalkSteps
+  }
+
+  /**
+   * Retrieves the teleportation parameter C for the random walks from the configuration.
+   * @return The teleportation parameter C as a Double.
+   */
+  def getC: Double = {
+    val c = config.getDouble("app.common.C")
+    logger.info(s"ConfigurationLoader: Teleportation parameter C retrieved: $c")
+    c
+  }
+
+  /**
+   * Retrieves the maximum depth for the random walks from the configuration.
+   * @return The maximum depth as an Int.
+   */
+  def getMaxDepth: Int = {
+    val maxDepth = config.getInt("app.common.MaxDepth")
+    logger.info(s"ConfigurationLoader: Maximum depth retrieved: $maxDepth")
+    maxDepth
+  }
+
+  /**
+   * Retrieves the threshold for the random walks from the configuration.
+   * @return The threshold as a Double.
+   */
+  def getThreshold: Double = {
+    val threshold = config.getDouble("app.common.Threshold")
+    logger.info(s"ConfigurationLoader: Threshold retrieved: $threshold")
+    threshold
+  }
 
   // ################### SPARK SESSION BUILDER ###################
+  /**
+   * Creates and configures a SparkSession based on the application's environment and debug settings.
+   * @return A configured instance of SparkSession.
+   */
   def createSparkSession(): SparkSession = {
     val builder = SparkSession.builder.appName(appConfig.getString("appName"))
 
-    // Based on the environment, configure Spark
+    // Log starting of SparkSession building
+    logger.info("ConfigurationLoader: Starting to build SparkSession")
+
+    // Configure Spark based on environment
     environment match {
       case "local" =>
         builder.master(appConfig.getString("master"))
@@ -119,6 +186,9 @@ object ConfigurationLoader {
           builder.config("spark.cores.max", appConfig.getString("totalExecutorCores"))
         }
     }
+    // Log completion of SparkSession building
+    logger.info("ConfigurationLoader: SparkSession built successfully")
+
     builder.getOrCreate()
   }
 
@@ -142,7 +212,6 @@ object ConfigurationLoader {
     }
   }
 
-  // ################### PATH LOADER ###################
   def getOriginalNodesPath: String = {
     if (debug || !appConfig.hasPath("release.originalNodesPath")) {
       appConfig.getString("originalNodesPath")
@@ -175,20 +244,35 @@ object ConfigurationLoader {
     }
   }
 
-  // Add a method or a value to get the output directory from the configuration
+  /**
+   * Retrieves the output directory path from the configuration.
+   *
+   * @return String representing the output directory path.
+   */
   def getOutputDirectory: String = {
-    if (debug || !appConfig.hasPath("release.outputDirectory")) {
-      appConfig.getString("outputDirectory")
+    val directoryKey = if (debug || !appConfig.hasPath("release.outputDirectory")) {
+      "outputDirectory"
     } else {
-      appConfig.getString("release.outputDirectory")
+      "release.outputDirectory"
     }
+
+    val directoryPath = appConfig.getString(directoryKey)
+    logger.info(s"Output directory path retrieved: $directoryPath")
+    directoryPath
   }
 
-  // Method to generate the file name using time and day
+  /**
+   * Generates a file name based on the current time and date.
+   * This is used for naming output files in a way that they are unique and identifiable.
+   *
+   * @return String representing the generated file name.
+   */
   def generateFileName(): String = {
     val currentTime = LocalDateTime.now()
-    val formatter = DateTimeFormatter.ofPattern("HHmmss_MMddyyyy")
-    s"MITMStatistics_${currentTime.format(formatter)}"
+    val formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+    val fileName = s"MITMStatistics_${currentTime.format(formatter)}.txt"
+    logger.info(s"Generated file name: $fileName")
+    fileName
   }
 
 }
