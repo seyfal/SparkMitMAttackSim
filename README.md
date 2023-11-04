@@ -1,3 +1,12 @@
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Scala Version](https://img.shields.io/badge/Scala-2.13.10-red)
+![Apache Spark Version](https://img.shields.io/badge/Apache_Spark-3.5.0-blueviolet)
+![ScalaTest Version](https://img.shields.io/badge/ScalaTest-3.2.x-orange)
+![Typesafe Config Version](https://img.shields.io/badge/Typesafe_Config-1.4.1-brightgreen)
+![Logback Version](https://img.shields.io/badge/Logback-1.2.3-yellow)
+![SLF4J Version](https://img.shields.io/badge/SLF4J-1.7.30-lightgrey)
+![License](https://img.shields.io/badge/license-Apache_2.0-green)
 
 # Spark MITM Attack Simulation
 
