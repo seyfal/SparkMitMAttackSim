@@ -67,7 +67,7 @@ The simulation involves performing random walks on perturbed graphs, identifying
 
 ## Video Walkthru
 
-_A video walkthru is not yet available for this project. This section will be updated once the video content has been created._
+A video walkthru explaining configuration, deployment and code flow - https://youtu.be/V4WncbKnSck
 
 ---
 
