@@ -14,51 +14,57 @@
     limitations under the License.
 */
 
-// Required imports for GraphX
 import org.slf4j.LoggerFactory
 import org.apache.spark.graphx._
 import scala.util.Random
 
+/** Singleton object for random walk simulations on graphs using GraphX. */
 object RandomWalks {
   // Initialize logger for this object
   @transient private lazy val logger = LoggerFactory.getLogger(getClass)
 
+  /** Contains methods related to random walk operations on graphs. */
   object RandomWalkMethods {
 
     /**
-     *  Conducts a random walk on a given graph.
+     * Conducts a recursive random walk on a given graph.
      *
-     *  @param graph The input graph with Boolean vertex values and Int edge values.
-     *  @param numSteps The maximum number of steps for the random walk. Default value is 5.
-     *  @return A list of vertex IDs representing the path taken in the random walk.
+     * @param graph The input graph with Boolean vertex values and Int edge values.
+     * @param numSteps The maximum number of steps for the random walk.
+     * @return A list of vertex IDs representing the path taken in the random walk.
      */
     def randomWalk(graph: Graph[Boolean, Int], numSteps: Int): List[Long] = {
-      // Get all vertex IDs from the graph
-      val vertexIds = graph.vertices.map(_._1).collect()
+      logger.info("Starting random walk on graph.")
 
-      // Randomly select a starting vertex
-      val startVertexId = vertexIds(Random.nextInt(vertexIds.length))
-
-      // Initialize the path with the starting vertex
-      var path = List(startVertexId)
-      var currentVertexId = startVertexId
-
-      // Perform the random walk
-      for (_ <- 1 until numSteps) {
-        val neighbors = graph.collectNeighborIds(EdgeDirection.Out).lookup(currentVertexId).head
-
-        if (neighbors.nonEmpty) {
-          currentVertexId = neighbors(Random.nextInt(neighbors.length))
-          path = path :+ currentVertexId
+      // Helper function to perform recursive random walk.
+      @scala.annotation.tailrec
+      def walk(currentVertexId: Long, stepsLeft: Int, path: List[Long]): List[Long] = {
+        logger.debug(s"Current vertex: $currentVertexId, steps left: $stepsLeft")
+        if (stepsLeft == 0) {
+          logger.info("Random walk completed.")
+          path
         } else {
-          // No neighbors, end the walk
-          return path
+          val neighbors = graph.collectNeighborIds(EdgeDirection.Out).lookup(currentVertexId).headOption.getOrElse(Array.empty[Long])
+          if (neighbors.nonEmpty) {
+            val nextVertexId = neighbors(Random.nextInt(neighbors.length))
+            logger.debug(s"Walking to next vertex: $nextVertexId")
+            walk(nextVertexId, stepsLeft - 1, path :+ nextVertexId)
+          } else {
+            logger.info("No neighbors found, ending walk early.")
+            path
+          }
         }
       }
 
-      path
+      val vertexIds = graph.vertices.map(_._1).collect()
+      if (vertexIds.isEmpty) {
+        logger.error("The graph contains no vertices to begin a random walk.")
+        List.empty[Long]
+      } else {
+        val startVertexId = vertexIds(Random.nextInt(vertexIds.length))
+        logger.info(s"Starting vertex chosen at random: $startVertexId")
+        walk(startVertexId, numSteps, List(startVertexId))
+      }
     }
   }
-
 }
-

@@ -99,6 +99,10 @@ object ConfigurationLoader {
   }
   logger.info("ConfigurationLoader: Configuration section loaded successfully")
 
+  def isRunningOnCloud: Boolean = {
+    environment == "cloud"
+  }
+
   // ################### COMMON CONFIG ###################
   /**
    * Retrieves the number of random walks to perform from the configuration.
