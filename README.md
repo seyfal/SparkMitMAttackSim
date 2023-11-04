@@ -8,7 +8,7 @@
 ![SLF4J Version](https://img.shields.io/badge/SLF4J-1.7.30-lightgrey)
 ![License](https://img.shields.io/badge/license-Apache_2.0-green)
 
-# Spark MITM Attack Simulation
+# Spark MitM Attack Simulation
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -68,6 +68,7 @@ The simulation involves performing random walks on perturbed graphs, identifying
 ## Video Walkthru
 
 A video walkthru explaining configuration, deployment and code flow - https://youtu.be/V4WncbKnSck
+or vimeo link where video quality is lot higher - https://vimeo.com/881130606?share=copy
 
 ---
 
