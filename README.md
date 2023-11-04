@@ -74,7 +74,7 @@ The simulation involves performing random walks on perturbed graphs, identifying
 ## Video Walkthru
 
 A video walkthru explaining configuration, deployment and code flow - https://youtu.be/V4WncbKnSck
-or vimeo link where video quality is lot higher - https://vimeo.com/881130606?share=copy
+or vimeo link where video quality is lot better - https://vimeo.com/881130606?share=copy
 
 ---
 
