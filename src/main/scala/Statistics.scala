@@ -1,7 +1,10 @@
-package com.lsc
 
 import scala.collection.mutable
 import java.nio.file.{Files, Paths, StandardOpenOption}
+
+import com.amazonaws.services.s3.AmazonS3ClientBuilder
+import com.amazonaws.services.s3.model.PutObjectRequest
+import com.amazonaws.services.s3.model.ObjectMetadata
 
 object Statistics {
 
@@ -79,6 +82,25 @@ object Statistics {
 
     // Write the YAML content to the file, create new file or overwrite if it already exists
     Files.write(filePath, yamlContent.getBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+  }
+
+  def saveSummaryToFile_AWS(outputDirectory: String, fileName: String): Unit = {
+    val yamlContent = generateSummary()
+    val s3Client = AmazonS3ClientBuilder.standard().build()
+
+    // Assuming outputDirectory is of the form "s3://bucketName/path/to/folder"
+    val bucketName = outputDirectory.split("/")(2)
+    val key = outputDirectory.substring(outputDirectory.indexOf(bucketName) + bucketName.length + 1) + "/" + fileName
+
+    // Create metadata for your object and set content length
+    val metadata = new ObjectMetadata()
+    metadata.setContentLength(yamlContent.length)
+
+    // Upload a file as a new object with ContentType and title specified.
+    val inputStream = new java.io.ByteArrayInputStream(yamlContent.getBytes("UTF-8"))
+    val putRequest = new PutObjectRequest(bucketName, key, inputStream, metadata)
+
+    s3Client.putObject(putRequest)
   }
 
 }

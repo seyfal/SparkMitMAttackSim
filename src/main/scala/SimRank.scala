@@ -1,6 +1,5 @@
-package com.lsc
 
-import com.lsc.ConfigurationLoader.{getC, getMaxDepth, getThreshold}
+import ConfigurationLoader.{getC, getMaxDepth, getThreshold}
 import org.apache.spark.graphx._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast

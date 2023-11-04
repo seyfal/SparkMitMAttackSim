@@ -1,86 +1,75 @@
-/*
-    Copyright (c) 2023. Seyfal Sultanov
-    Unless required by applicable law or agreed to in writing, software distributed under
-    the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
-    either express or implied.  See the License for the specific language governing permissions and limitations under the License.
-*/
 
-package com.lsc
-
-// for deserializeWithCustomClassLoader
-import NetGraphAlgebraDefs.NetGraphComponent
-
-import java.io._
-
-// for graphToGraphX
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
-
-// for NodeObject
-import NetGraphAlgebraDefs.NodeObject
-import NetGraphAlgebraDefs.Action
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 object LoadMethods {
 
-  /**
-   * Deserializes an object from the given `InputStream` using a custom `ClassLoader`.
-   *
-   * This method uses the current thread's context class loader to resolve the classes
-   * during the deserialization process. This can be useful in situations where the
-   * standard class loader might not have access to all classes, especially in environments
-   * like certain application servers or when dealing with dynamically loaded classes.
-   *
-   * @param inputStream The input stream from which to read the serialized object.
-   * @tparam T The type of object to be deserialized.
-   * @return The deserialized object.
-   * @throws IOException            If an I/O error occurs while reading the stream.
-   * @throws ClassNotFoundException If a class of a serialized object cannot be found.
-   */
-  def deserializeWithCustomClassLoader[T](inputStream: InputStream): T = {
-    // Fetch the current thread's context class loader
-    val classLoader = Thread.currentThread().getContextClassLoader
+  // Define a case class to represent the Node properties based on your JSON structure
+  case class NodeProperties(
+                             id: Int,
+                             valuableData: Boolean
+                             // Include other properties if needed
+                           )
 
-    // Create an `ObjectInputStream` from the provided `inputStream`.
-    // This stream is specialized with a custom `resolveClass` method.
-    val ois = new ObjectInputStream(inputStream) {
-      override def resolveClass(desc: ObjectStreamClass): Class[_] = {
-        // For each class descriptor encountered during deserialization,
-        // use the custom classLoader to fetch the corresponding class.
-        Class.forName(desc.getName, false, classLoader)
-      }
+  // Use json4s to parse JSON
+  implicit val formats: DefaultFormats.type = DefaultFormats
+
+  /**
+   * Loads nodes from a JSON file.
+   *
+   * @param sc The SparkContext.
+   * @param path The path to the JSON file containing node data.
+   * @return RDD containing vertices for GraphX.
+   */
+  def loadNodes(sc: SparkContext, path: String): RDD[(VertexId, Boolean)] = {
+    // Read the file as an RDD[String]
+    val fileContent = sc.textFile(path)
+
+    // Parse the JSON lines to `NodeProperties`
+    val nodes = fileContent.map { line =>
+      val json = parse(line)
+      json.extract[NodeProperties]
     }
 
-    // Read the object from the stream and cast it to the expected type.
-    ois.readObject().asInstanceOf[T]
+    // Convert to RDD[(VertexId, Boolean)]
+    nodes.map(node => (node.id.toLong, node.valuableData))
   }
 
-  private def extractNodeInfo(node: NodeObject): (Long, Boolean) = {
-    (node.id.toLong, node.valuableData)
+  /**
+   * Loads edges from a text file.
+   *
+   * @param sc The SparkContext.
+   * @param path The path to the text file containing edge data.
+   * @return RDD containing edges for GraphX.
+   */
+  def loadEdges(sc: SparkContext, path: String): RDD[Edge[Int]] = {
+    // Read the file as an RDD[String]
+    val fileContent = sc.textFile(path)
+
+    // Parse the lines to create Edge objects
+    val edges = fileContent.map { line =>
+      val parts = line.split(" ")
+      Edge(parts(0).toLong, parts(1).toLong, 1) // The edge property is set to 1 by default
+    }
+
+    edges
   }
 
-  private def extractEdgeInfo(action: Action): Edge[Int] = {
-    Edge(action.fromNode.id.toLong, action.toNode.id.toLong, 1)
+  /**
+   * Create a GraphX graph from node and edge files.
+   *
+   * @param sc The SparkContext.
+   * @param nodePath The path to the JSON file containing node data.
+   * @param edgePath The path to the text file containing edge data.
+   * @return A GraphX graph.
+   */
+  def createGraph(sc: SparkContext, nodePath: String, edgePath: String): Graph[Boolean, Int] = {
+    val vertices = loadNodes(sc, nodePath)
+    val edges = loadEdges(sc, edgePath)
+    Graph(vertices, edges)
   }
-
-  def saveToGraphX(deserializedList: List[NetGraphComponent], sc: SparkContext): Graph[Boolean, Int] = {
-    // Separate NodeObjects and Actions
-    val nodesOnly = deserializedList.collect { case node: NodeObject => node }
-    val actionsOnly = deserializedList.collect { case action: Action => action }
-
-    // Extracting properties and converting NodeObject list to Vertex RDD
-    val vertices: RDD[(VertexId, Boolean)] = sc.parallelize(nodesOnly.map(node => extractNodeInfo(node)))
-
-    // Extract edges with cost from the Action objects
-    val edgesFromActions = actionsOnly.map(action => extractEdgeInfo(action))
-
-    val edges: RDD[Edge[Int]] = sc.parallelize(edgesFromActions)
-
-    // Create the Graph
-    val graph = Graph(vertices, edges)
-
-    graph
-  }
-
 
 }

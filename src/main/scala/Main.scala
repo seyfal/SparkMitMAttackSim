@@ -1,13 +1,10 @@
-package com.lsc
 
-import NetGraphAlgebraDefs.NodeObject
 import org.slf4j.LoggerFactory
-import com.lsc.LoadMethods.{deserializeWithCustomClassLoader, saveToGraphX}
-import com.lsc.AttackSimulation.evaluateRandomWalkAndDecide
-import com.lsc.ConfigurationLoader.{generateFileName, getNumRandomWalkSteps, getNumRandomWalks, getOriginalGraphFilePath, getOutputDirectory, getPerturbedGraphFilePath, getSimilarityThreshold}
-import com.lsc.Statistics.setNumberOfNodes
-
-import java.io.FileInputStream
+import AttackSimulation.evaluateRandomWalkAndDecide
+import ConfigurationLoader._
+import LoadMethods.createGraph
+import Statistics.setNumberOfNodes
+import org.apache.spark.sql.SparkSession
 
 object Main {
 
@@ -29,18 +26,9 @@ object Main {
       val sc = spark.sparkContext
       logger.debug(s"$methodName: SparkContext extracted from SparkSession")
 
-      // Deserialize a previously saved graph from file
-      val originalGraphDeserialized: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](
-        new FileInputStream(getOriginalGraphFilePath)
-      )
-
-      val perturbedGraphDeserialized: List[NodeObject] = deserializeWithCustomClassLoader[List[NodeObject]](
-        new FileInputStream(getPerturbedGraphFilePath)
-      )
-
       // Convert the deserialized list into a GraphX graph
-      val originalGraphRDD = saveToGraphX(originalGraphDeserialized, sc)
-      val perturbedGraphRDD = saveToGraphX(perturbedGraphDeserialized, sc)
+      val originalGraphRDD = createGraph(sc, getOriginalNodesPath, getOriginalEdgesPath)
+      val perturbedGraphRDD = createGraph(sc, getPerturbedNodesPath, getPerturbedEdgesPath)
 
       // set the size of the graph
       setNumberOfNodes(originalGraphRDD.numVertices)

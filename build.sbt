@@ -8,12 +8,12 @@ Global / excludeLintKeys += run / mainClass
 ThisBuild / version := "0.1.0"
 
 // Define the Scala version to be used.
-ThisBuild / scalaVersion := "2.13.10"
+ThisBuild / scalaVersion := "2.12.17"
 
 // Define the project name.
 name := "SparkRandomWalk"
 
-unmanagedBase := baseDirectory.value / "lib"
+// unmanagedBase := baseDirectory.value / "lib"
 
 // Define library versions. Adjust the version numbers according to your needs.
 val scalaTestVersion = "3.2.15"
@@ -21,7 +21,7 @@ val typeSafeConfigVersion = "1.4.2"
 val logbackVersion = "1.3.11"
 val sfl4sVersion = "2.0.7"
 val graphVizVersion = "0.18.1"
-val sparkVersion = "3.5.0"
+val sparkVersion = "3.4.1"
 
 // Define common dependencies shared across your project.
 lazy val commonDependencies = Seq(
@@ -40,12 +40,14 @@ lazy val root = (project in file("."))
     libraryDependencies ++= commonDependencies // Adding common dependencies to your project
   )
 
+libraryDependencies ++= Seq(
+  "com.amazonaws" % "aws-java-sdk-s3" % "1.12.470" // Replace "1.12.x" with the latest version number
+)
+
 // Define Scala Compiler options.
 scalacOptions ++= Seq(
   "-deprecation", // Emit warning and location for usages of deprecated APIs
-  "--explain-types", // Explain type errors in more detail
   "-feature", // Emit warning and location for usages of features that should be imported explicitly
-  "-Ytasty-reader"
 )
 
 // Define JVM options for running your project.
@@ -59,7 +61,7 @@ run / javaOptions ++= Seq(
 )
 
 // Define the main class. Replace with the actual main class of your application.
-Compile / mainClass := Some("com.lsc.Main")
+Compile / mainClass := Some("Main")
 
 val jarName = "RandomWalk.jar"
 assembly/assemblyJarName := jarName

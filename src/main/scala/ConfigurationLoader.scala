@@ -1,6 +1,5 @@
-package com.lsc
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 
@@ -22,7 +21,6 @@ object ConfigurationLoader {
   logger.info(s"$methodName: Configuration set up successfully")
 
   // ################### ENVIRONMENT CHECKER ###################
-
   // Check if the application is being run on the AWS
   logger.info(s"$methodName: Checking if the application is running on the AWS")
   private val isOnAWS = Try {
@@ -60,8 +58,8 @@ object ConfigurationLoader {
   }.getOrElse(false)
   logger.info(s"$methodName: Is the application running on the AWS EMR? $isOnEMR")
 
-  // set the environment
   private val environment = if (isOnAWS && isOnEMR) "cloud" else "local"
+
   logger.info(s"$methodName: Environment set to $environment")
 
   // ################### DEBUG CHECKER ###################
@@ -104,7 +102,7 @@ object ConfigurationLoader {
 
   // ################### SPARK SESSION BUILDER ###################
   def createSparkSession(): SparkSession = {
-    val builder = SparkSession.builder().appName(appConfig.getString("appName"))
+    val builder = SparkSession.builder.appName(appConfig.getString("appName"))
 
     // Based on the environment, configure Spark
     environment match {
@@ -112,16 +110,15 @@ object ConfigurationLoader {
         builder.master(appConfig.getString("master"))
       case "cloud" =>
         builder.master(appConfig.getString("master"))
-//          .config("spark.executor.memory", appConfig.getString("executorMemory"))
-//          .config("spark.executor.cores", appConfig.getString("executorCores"))
-//          .config("spark.dynamicAllocation.enabled", appConfig.getString("dynamicAllocationEnabled"))
-//          .config("spark.submit.deployMode", appConfig.getString("deployMode"))
+          .config("spark.executor.memory", appConfig.getString("executorMemory"))
+          .config("spark.executor.cores", appConfig.getString("executorCores"))
+          .config("spark.dynamicAllocation.enabled", appConfig.getString("dynamicAllocationEnabled"))
+          .config("spark.submit.deployMode", appConfig.getString("deployMode"))
         // If there is a 'totalExecutorCores' setting, include it
-//        if (appConfig.hasPath("totalExecutorCores")) {
-//          builder.config("spark.cores.max", appConfig.getString("totalExecutorCores"))
-//        }
+        if (appConfig.hasPath("totalExecutorCores")) {
+          builder.config("spark.cores.max", appConfig.getString("totalExecutorCores"))
+        }
     }
-
     builder.getOrCreate()
   }
 
@@ -142,6 +139,39 @@ object ConfigurationLoader {
       appConfig.getString("perturbedGraphFilePath")
     } else {
       appConfig.getString("release.perturbedGraphFilePath")
+    }
+  }
+
+  // ################### PATH LOADER ###################
+  def getOriginalNodesPath: String = {
+    if (debug || !appConfig.hasPath("release.originalNodesPath")) {
+      appConfig.getString("originalNodesPath")
+    } else {
+      appConfig.getString("release.originalNodesPath")
+    }
+  }
+
+  def getOriginalEdgesPath: String = {
+    if (debug || !appConfig.hasPath("release.originalEdgesPath")) {
+      appConfig.getString("originalEdgesPath")
+    } else {
+      appConfig.getString("release.originalEdgesPath")
+    }
+  }
+
+  def getPerturbedNodesPath: String = {
+    if (debug || !appConfig.hasPath("release.perturbedNodesPath")) {
+      appConfig.getString("perturbedNodesPath")
+    } else {
+      appConfig.getString("release.perturbedNodesPath")
+    }
+  }
+
+  def getPerturbedEdgesPath: String = {
+    if (debug || !appConfig.hasPath("release.perturbedEdgesPath")) {
+      appConfig.getString("perturbedEdgesPath")
+    } else {
+      appConfig.getString("release.perturbedEdgesPath")
     }
   }
 
