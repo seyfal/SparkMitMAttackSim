@@ -56,10 +56,6 @@ The simulation involves performing random walks on perturbed graphs, identifying
    sbt run
    ```
 
-Great, following the Quick Start section, we will detail the subsequent parts of the README.md document.
-
----
-
 ## Video Walkthru
 
 _A video walkthru is not yet available for this project. This section will be updated once the video content has been created._
