@@ -1,0 +1,6 @@
+Student: Seyfal Sultanov
+
+Very interesting solution. I enjoyed going through your code, especially given how detailed your comments are.
+Great job! Keep it up!
+
+Final Grade: 15%
