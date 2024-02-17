@@ -8,12 +8,6 @@
 ![SLF4J Version](https://img.shields.io/badge/SLF4J-1.7.30-lightgrey)
 ![License](https://img.shields.io/badge/license-Apache_2.0-green)
 
-## My Submission: 
-1. **Seyfal Sultanov**
-2. **NetID: ssulta24**
-3. **UIC Email: ssulta24@uic.edu**
-4. **UIN: 678686497**
-
 # Spark MitM Attack Simulation
 
 ## Table of Contents
